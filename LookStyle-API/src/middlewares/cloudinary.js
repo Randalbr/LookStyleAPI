@@ -5,7 +5,7 @@ import cloudinary from "../config/cloudinary.js";
 const storage = new CloudinaryStorage({
   cloudinary,
   params: {
-    folder: "lookstyle",
+    folder: "LookStyle",
     allowed_formats: ["jpg", "png", "jpeg", "webp"],
     resource_type: "auto",
   },

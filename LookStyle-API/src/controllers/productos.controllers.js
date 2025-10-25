@@ -19,7 +19,7 @@ export const getProductoById = async (req, res) => {
   const { id } = req.params;
   try {
     const [rows] = await pool.query(
-      `SELECT p.id_producto, p.nombre, p.descripcion, p.precio_base, 
+      `SELECT p.id_producto, p.nombre, p.descripcion, p.precio_base, p.imagen, 
               c.nombre AS categoria
        FROM productos p
        LEFT JOIN categoria_productos c ON p.id_categoria = c.id_categoria
@@ -59,14 +59,8 @@ export const createProducto = async (req, res) => {
       return res.status(400).json({ error: "Debes seleccionar una categoría" });
     }
 
-    // ✅ Subida de imagen a Cloudinary
-    let imagenUrl = null;
-    if (req.file) {
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: "productos", // 👉 se crea carpeta "productos" en tu Cloudinary
-      });
-      imagenUrl = result.secure_url;
-    }
+    
+    const imagenUrl = req.file ? req.file.path : null;
 
     // ✅ Guardar en MySQL
     const [insert] = await pool.query(

@@ -14,7 +14,7 @@ export const login = async (req, res) => {
   try {
     // 🔍 Buscar usuario activo por nombre
     const [rows] = await pool.query(
-      "SELECT * FROM usuarios WHERE nombre = ? AND estado = 'activo'",
+      "SELECT * FROM usuarios WHERE nombre = ?",
       [nombre]
     );
 
@@ -75,7 +75,7 @@ export const register = async (req, res) => {
 
     // 🔹 Insertar usuario con estado activo por defecto
     const [result] = await pool.query(
-      "INSERT INTO usuarios (nombre, password, estado) VALUES (?, ?, 'activo')",
+      "INSERT INTO usuarios (nombre, password) VALUES (?, ?)",
       [nombre, hash]
     );
 

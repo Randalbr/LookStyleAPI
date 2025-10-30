@@ -13,7 +13,7 @@ import { verificarToken } from "../middlewares/authMiddleware.js";
 import { uploadCloud } from'../middlewares/cloudinary.js'
 
 router.get("/", getProductos);         
-router.get("/:id",verificarToken, getProductoById); 
+router.get("/:id",getProductoById); 
 router.post("/", verificarToken, uploadCloud.single("imagen"),createProducto);     
 router.put("/:id", verificarToken, uploadCloud.single("imagen"),updateProducto);   
 router.delete("/:id", verificarToken,deleteProducto);

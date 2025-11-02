@@ -2,6 +2,7 @@ import { Router } from "express";
 import { 
   getVariantes, 
   getVarianteById, 
+  getVariantesByProductoId,
   createVariante, 
   updateVariante, 
   deleteVariante 
@@ -14,6 +15,7 @@ import { uploadCloud } from'../middlewares/cloudinary.js'
 
 router.get("/",getVariantes);          
 router.get("/:id",getVarianteById);          
+router.get("/productoVariante/:id",getVariantesByProductoId);          
 router.post("/", verificarToken , uploadCloud.array("imagenes", 5),createVariante);       
 router.put("/:id",verificarToken , uploadCloud.array("imagenes", 5),updateVariante);     
 router.delete("/:id", verificarToken,deleteVariante);  

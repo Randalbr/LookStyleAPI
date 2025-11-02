@@ -98,6 +98,75 @@ export const getVarianteById = async (req, res) => {
   }
 };
 
+export const getVariantesByProductoId = async (req, res) => {
+  const { id } = req.params; // id_producto
+
+  try {
+    // 🔹 Obtener las variantes del producto
+    const [variantes] = await pool.query(
+      `
+      SELECT 
+        pv.id_variante,
+        pv.id_producto,
+        pv.id_color,
+        pv.precio,
+        pv.estado,
+        p.nombre AS producto,
+        c.nombre AS color
+      FROM producto_variantes pv
+      LEFT JOIN productos p ON pv.id_producto = p.id_producto
+      LEFT JOIN colores c ON pv.id_color = c.id_color
+      WHERE pv.id_producto = ?;
+      `,
+      [id]
+    );
+
+    if (variantes.length === 0) {
+      return res.status(404).json({ message: "No se encontraron variantes para este producto" });
+    }
+
+    // 🔹 Para cada variante, obtener tallas e imágenes
+    const resultado = await Promise.all(
+      variantes.map(async (variante) => {
+        const [tallas] = await pool.query(
+          `
+          SELECT 
+            t.id_talla, 
+            t.nombre, 
+            vd.cantidad
+          FROM variante_detalles vd
+          INNER JOIN tallas t ON vd.id_talla = t.id_talla
+          WHERE vd.id_variante = ?;
+          `,
+          [variante.id_variante]
+        );
+
+        const [imagenes] = await pool.query(
+          `
+          SELECT 
+            id_imagen, 
+            url
+          FROM variante_imagenes
+          WHERE id_variante = ?;
+          `,
+          [variante.id_variante]
+        );
+
+        return {
+          ...variante,
+          tallas,
+          imagenes,
+        };
+      })
+    );
+
+    res.json(resultado);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Error al obtener las variantes del producto" });
+  }
+};
+
 
 export const createVariante = async (req, res) => {
   const { id_producto, id_color, precio, tallas, estado } = req.body;

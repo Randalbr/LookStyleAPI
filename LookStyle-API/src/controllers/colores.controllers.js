@@ -13,7 +13,7 @@ export const getColorById = async (req, res) => {
   const { id } = req.params;
   try {
     const [rows] = await pool.query(
-      `SELECT nombre FROM colores WHERE id_color = ?`,
+      `SELECT * FROM colores WHERE id_color = ?`,
       [id]
     );
 

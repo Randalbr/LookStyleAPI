@@ -90,25 +90,31 @@ export const updateProducto = async (req, res) => {
 
   try {
     const [rows] = await pool.query("SELECT * FROM productos WHERE id_producto = ?", [id]);
-    if (rows.length === 0) {
+    if (rows.length === 0)
       return res.status(404).json({ error: "Producto no encontrado" });
-    }
 
     const producto = rows[0];
-    const newData = {
-      nombre: nombre ?? producto.nombre,
-      descripcion: descripcion ?? producto.descripcion,
-      precio_base: precio_base ?? producto.precio_base,
-      id_categoria: id_categoria ?? producto.id_categoria,
-      imagen : req.file ? req.file.path : producto.imagen,
-    };
+    let imagenFinal = producto.imagen;
+
+    // Si hay una nueva imagen, eliminar la anterior de Cloudinary
+    if (req.file) {
+      if (producto.imagen) {
+        const publicId = producto.imagen.split("/").pop().split(".")[0]; // extrae el ID del archivo
+        try {
+          await cloudinary.uploader.destroy(`LookStyle/${publicId}`);
+        } catch (err) {
+          console.warn("⚠️ No se pudo eliminar la imagen anterior:", err.message);
+        }
+      }
+      imagenFinal = req.file.path;
+    }
 
     await pool.query(
-      "UPDATE productos SET nombre=?, descripcion=?, precio_base=?, id_categoria=?, imagen= ? WHERE id_producto=?",
-      [newData.nombre, newData.descripcion, newData.precio_base, newData.id_categoria, newData.imagen,id]
+      "UPDATE productos SET nombre=?, descripcion=?, precio_base=?, id_categoria=?, imagen=? WHERE id_producto=?",
+      [nombre ?? producto.nombre, descripcion ?? producto.descripcion, precio_base ?? producto.precio_base, id_categoria ?? producto.id_categoria, imagenFinal, id]
     );
 
-    res.json({ mensaje: "Producto actualizado", data: newData });
+    res.json({ mensaje: "Producto actualizado correctamente" });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -117,18 +123,33 @@ export const updateProducto = async (req, res) => {
 
 export const deleteProducto = async (req, res) => {
   const { id } = req.params;
-  try {
-    const [result] = await pool.query(
-      "DELETE FROM productos WHERE id_producto = ?",
-      [id]
-    );
 
-    if (result.affectedRows === 0) {
+  try {
+    const [rows] = await pool.query("SELECT imagen FROM productos WHERE id_producto = ?", [id]);
+    if (rows.length === 0)
       return res.status(404).json({ error: "Producto no encontrado" });
+
+    const imagen = rows[0].imagen;
+
+    // ✅ Eliminar imagen de Cloudinary si existe
+    if (imagen) {
+      const publicId = imagen.split("/").pop().split(".")[0];
+      try {
+        await cloudinary.uploader.destroy(`LookStyle/${publicId}`);
+      } catch (err) {
+        console.warn("⚠️ No se pudo eliminar la imagen en Cloudinary:", err.message);
+      }
     }
 
-    res.json({ mensaje: "Producto eliminado correctamente" });
+    // ✅ Eliminar producto de la base de datos
+    const [result] = await pool.query("DELETE FROM productos WHERE id_producto = ?", [id]);
+
+    if (result.affectedRows === 0)
+      return res.status(404).json({ error: "No se pudo eliminar el producto" });
+
+    res.json({ mensaje: "Producto e imagen eliminados correctamente 🗑️" });
   } catch (error) {
+    console.error("❌ Error al eliminar producto:", error);
     res.status(500).json({ error: error.message });
   }
 };

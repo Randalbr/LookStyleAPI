@@ -1,4 +1,5 @@
 import pool from "../config/db.js";
+import { v2 as cloudinary } from "cloudinary";
 
 export const getVariantes = async (req, res) => {
   try {
@@ -253,16 +254,18 @@ export const updateVariante = async (req, res) => {
     // 3️⃣ Eliminar imágenes de Cloudinary y base de datos si hay nuevas
     if (req.files && req.files.length > 0 && imagenesActuales.length > 0) {
       for (const img of imagenesActuales) {
-        // Extraer el public_id desde la URL
-        const parts = img.url.split("/");
-        const filename = parts[parts.length - 1].split(".")[0];
-        const publicId = `LookStyle/${filename}`;
-
-        // Intentar eliminar en Cloudinary
         try {
-          await cloudinary.uploader.destroy(publicId);
+          // Extraer el public_id del URL completo (sin extensión ni versión)
+          const match = img.url.match(/upload\/(?:v\d+\/)?(.+)\.[a-zA-Z]+$/);
+          const publicId = match ? match[1] : null;
+
+          if (publicId) {
+            await cloudinary.uploader.destroy(publicId);
+          } else {
+            console.warn("No se pudo extraer public_id de:", img.url);
+          }
         } catch (err) {
-          console.warn("No se pudo eliminar imagen:", img.url);
+          console.warn("No se pudo eliminar imagen:", img.url, err.message);
         }
       }
 
@@ -297,12 +300,44 @@ export const updateVariante = async (req, res) => {
 // 🔹 Eliminar variante (cascada elimina detalles e imágenes)
 export const deleteVariante = async (req, res) => {
   const { id } = req.params;
+  const connection = await pool.getConnection();
+  await connection.beginTransaction();
 
   try {
-    await pool.query("DELETE FROM producto_variantes WHERE id_variante=?", [id]);
-    res.json({ message: "Variante eliminada correctamente" });
+    // 1️⃣ Obtener las imágenes asociadas
+    const [imagenes] = await connection.query(
+      "SELECT url FROM variante_imagenes WHERE id_variante=?",
+      [id]
+    );
+
+    // 2️⃣ Eliminar de Cloudinary cada imagen
+    for (const img of imagenes) {
+      try {
+        const match = img.url.match(/upload\/(?:v\d+\/)?(.+)\.[a-zA-Z]+$/);
+        const publicId = match ? match[1] : null;
+
+        if (publicId) {
+          await cloudinary.uploader.destroy(publicId);
+        } else {
+          console.warn("⚠️ No se pudo extraer public_id de:", img.url);
+        }
+      } catch (err) {
+        console.warn("⚠️ Error eliminando imagen:", img.url, err.message);
+      }
+    }
+
+    // 3️⃣ Eliminar registros de la BD
+    await connection.query("DELETE FROM variante_imagenes WHERE id_variante=?", [id]);
+    await connection.query("DELETE FROM producto_variantes WHERE id_variante=?", [id]);
+
+    await connection.commit();
+    res.json({ message: "Variante e imágenes eliminadas correctamente ✅" });
   } catch (error) {
+    await connection.rollback();
     console.error(error);
-    res.status(500).json({ message: "Error al eliminar variante" });
+    res.status(500).json({ message: "Error al eliminar variante ❌" });
+  } finally {
+    connection.release();
   }
 };
+

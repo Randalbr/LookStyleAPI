@@ -117,7 +117,7 @@ export const getVariantesByProductoId = async (req, res) => {
       FROM producto_variantes pv
       LEFT JOIN productos p ON pv.id_producto = p.id_producto
       LEFT JOIN colores c ON pv.id_color = c.id_color
-      WHERE pv.id_producto = ?;
+      WHERE pv.id_producto = 15 AND pv.estado = 'activo';
       `,
       [id]
     );

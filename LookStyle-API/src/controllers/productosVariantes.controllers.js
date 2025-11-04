@@ -234,7 +234,20 @@ export const createVariante = async (req, res) => {
 // 🔹 Actualizar una variante con nuevas imágenes (opcional)
 export const updateVariante = async (req, res) => {
   const { id } = req.params;
-  const { id_color, precio, estado } = req.body;
+  const { id_color, precio, estado, tallas } = req.body;
+
+  // 🧩 Parsear tallas
+  let parsedTallas = [];
+  try {
+    if (typeof tallas === "string") {
+      parsedTallas = JSON.parse(tallas);
+    } else if (Array.isArray(tallas)) {
+      parsedTallas = tallas;
+    }
+  } catch (err) {
+    console.error("❌ Error al parsear tallas:", err);
+    return res.status(400).json({ message: "Formato inválido de tallas" });
+  }
 
   const connection = await pool.getConnection();
   await connection.beginTransaction();
@@ -252,25 +265,23 @@ export const updateVariante = async (req, res) => {
       [id]
     );
 
-    // 3️⃣ Eliminar imágenes de Cloudinary y base de datos si hay nuevas
+    // 3️⃣ Eliminar imágenes antiguas si se subieron nuevas
     if (req.files && req.files.length > 0 && imagenesActuales.length > 0) {
       for (const img of imagenesActuales) {
         try {
-          // Extraer el public_id del URL completo (sin extensión ni versión)
           const match = img.url.match(/upload\/(?:v\d+\/)?(.+)\.[a-zA-Z]+$/);
           const publicId = match ? match[1] : null;
-
           if (publicId) {
             await cloudinary.uploader.destroy(publicId);
           } else {
-            console.warn("No se pudo extraer public_id de:", img.url);
+            console.warn("⚠️ No se pudo extraer public_id de:", img.url);
           }
         } catch (err) {
-          console.warn("No se pudo eliminar imagen:", img.url, err.message);
+          console.warn("⚠️ No se pudo eliminar imagen:", img.url, err.message);
         }
       }
 
-      // Borrar las antiguas de la BD
+      // Borrar antiguas de la BD
       await connection.query(
         "DELETE FROM variante_imagenes WHERE id_variante=?",
         [id]
@@ -287,16 +298,62 @@ export const updateVariante = async (req, res) => {
       }
     }
 
+    // 5️⃣ Actualizar tallas
+    // Obtener las tallas actuales de la BD
+    const [tallasActuales] = await connection.query(
+      "SELECT id_talla, cantidad FROM variante_detalles WHERE id_variante=?",
+      [id]
+    );
+
+    // Crear un mapa para facilitar comparaciones
+    const mapaTallasActuales = new Map(
+      tallasActuales.map((t) => [t.id_talla, t.cantidad])
+    );
+
+    // IDs de tallas nuevas
+    const nuevasTallasIds = parsedTallas.map((t) => Number(t.id_talla));
+
+    // ➕ Insertar o actualizar tallas
+    for (const talla of parsedTallas) {
+      if (!talla.id_talla || talla.cantidad == null) continue;
+      const id_talla = Number(talla.id_talla);
+
+      if (mapaTallasActuales.has(id_talla)) {
+        // Si existe, actualizar cantidad
+        await connection.query(
+          "UPDATE variante_detalles SET cantidad=? WHERE id_variante=? AND id_talla=?",
+          [talla.cantidad, id, id_talla]
+        );
+      } else {
+        // Si no existe, insertar nueva
+        await connection.query(
+          "INSERT INTO variante_detalles (id_variante, id_talla, cantidad) VALUES (?, ?, ?)",
+          [id, id_talla, talla.cantidad]
+        );
+      }
+    }
+
+    // ❌ Eliminar tallas que ya no están
+    for (const id_talla_actual of mapaTallasActuales.keys()) {
+      if (!nuevasTallasIds.includes(id_talla_actual)) {
+        await connection.query(
+          "DELETE FROM variante_detalles WHERE id_variante=? AND id_talla=?",
+          [id, id_talla_actual]
+        );
+      }
+    }
+
     await connection.commit();
-    res.json({ message: "Variante actualizada correctamente" });
+    res.json({ message: "Variante actualizada correctamente ✅" });
   } catch (error) {
     await connection.rollback();
-    console.error(error);
+    console.error("❌ Error en updateVariante:", error);
     res.status(500).json({ message: "Error al actualizar la variante" });
   } finally {
     connection.release();
   }
 };
+
 
 // 🔹 Eliminar variante (cascada elimina detalles e imágenes)
 export const deleteVariante = async (req, res) => {

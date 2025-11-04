@@ -5,14 +5,15 @@ export const getVariantes = async (req, res) => {
   try {
     const [rows] = await pool.query(`
       SELECT 
-        pv.id_variante,
-        pv.id_color,
-        pv.precio,
-        pv.estado,
-        c.nombre AS color,
-        p.nombre AS producto,
-        GROUP_CONCAT(DISTINCT t.nombre ORDER BY t.nombre SEPARATOR ', ') AS tallas,
-        GROUP_CONCAT(DISTINCT vi.url ORDER BY vi.id_imagen SEPARATOR ', ') AS imagenes
+          pv.id_variante,
+          pv.id_producto,              
+          pv.id_color,
+          pv.precio,
+          pv.estado,
+          c.nombre AS color,
+          p.nombre AS producto,
+          GROUP_CONCAT(DISTINCT t.nombre ORDER BY t.nombre SEPARATOR ', ') AS tallas,
+          GROUP_CONCAT(DISTINCT vi.url ORDER BY vi.id_imagen SEPARATOR ', ') AS imagenes
       FROM producto_variantes pv
       LEFT JOIN colores c ON pv.id_color = c.id_color
       LEFT JOIN productos p ON pv.id_producto = p.id_producto
